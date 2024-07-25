@@ -6,30 +6,47 @@
 #include <pthread.h>
 
 #define STARTING_CAPACITY 4
-#define MAX_LENGHT 15
+#define MAX_LENGHT 25            
 #define ALLOCATION_ERR -1
 #define READING_SUCCESS 0
 #define MAX_DIGITS 5
 #define LENGHT_ERR 1
-
+                        
 #define AUTO 1
 #define MANUAL 0
 
+#define YES 1
+#define NO 0
+
 typedef struct{
     uint8_t mode;
-    uint32_t amount;
-    uint32_t interval;
+    float duration;
+    uint16_t time;
     bool running;
 }config_t;
 
 extern config_t config;
 extern pthread_mutex_t config_mutex;
 
-//reads the user input commands from stdin
+//Reads the user input commands from stdin
 int readCmd(char **command);
 
-//check whether an string argument is an interger
+//Check whether an string argument is an interger
 bool checkArgument(char *arg);
 
-//proccess the commands from user, updates the config for irrigation thread and runs irrigation in manual mode
-void processCommand(char *input, config_t *config, bool *confirmation);
+//Proccess the commands from user, updates the config for irrigation thread and runs irrigation in manual mode
+int processCommand(char *input);
+
+/*
+* Separate input command into separate command and parameter buffers for processing of command
+* RETURNS:
+*   - true, when the command has proper format and lenght
+*   - false, otherwise
+*/
+bool splitToBuffers(char *input, char *cmd_buffer, char *param_buffer_first, char *param_buffer_second);
+
+//Get the confirmation for a command from user
+int recieveConfirmation(char *command);
+
+//Check whether an string argument is a float
+bool checkArgumentFloat(char *arg);

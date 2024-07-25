@@ -2,11 +2,11 @@ CC = clang
 
 CFLAGS = -Wall -std=c11 -pedantic -Wextra -g
 
-TARGET = IrrigationManager
+TARGET = FiltrationManager
 
-SRCS = main.c utils.c weather_utils.c
+SRCS = main.c utils.c
 
-HEADERS = utils.h weather_utils.h
+HEADERS = utils.h
 
 OBJS=$(SRCS:.c=.o)
 

@@ -30,9 +30,9 @@ config_t config = {0};
 pthread_mutex_t config_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int processCommand(char *input){
-    char *cmd_buffer = (char*)malloc(MAX_LENGHT * sizeof(char));
-    char *param_buffer_first = (char*)malloc(MAX_LENGHT * sizeof(char));
-    char *param_buffer_second = (char*)malloc(MAX_LENGHT * sizeof(char));
+    char *cmd_buffer = (char*)calloc(MAX_LENGHT * sizeof(char), sizeof(char));
+    char *param_buffer_first = (char*)calloc(MAX_LENGHT * sizeof(char), sizeof(char));
+    char *param_buffer_second = (char*)calloc(MAX_LENGHT * sizeof(char), sizeof(char));
     //allocation check
     if(cmd_buffer == NULL || param_buffer_first == NULL || param_buffer_second == NULL){
         if(cmd_buffer != NULL) free(cmd_buffer);
@@ -46,17 +46,18 @@ int processCommand(char *input){
         free(param_buffer_second);
         return EXIT_SUCCESS;
     }
+    printf("command: %s\nfirst parameter: %s\nsecond parameter %s\n", cmd_buffer, param_buffer_first, param_buffer_second);
 
     if(strncmp(cmd_buffer, "mode", 5) == 0){
         pthread_mutex_lock(&config_mutex);
         if(strncmp(param_buffer_first, "-a", 3) == 0 && config.mode != AUTO){
-            //switching mode something function           
+            //switchMode(AUTO);           
         }
         else if (strncmp(param_buffer_first, "-a", 3) == 0 && config.mode == AUTO){
             printf("Already running in automatic mode.\n");
         }    
         else if (strncmp(param_buffer_first, "-m", 3) == 0 && config.mode != MANUAL){
-            //switching mode something function   
+            //switchMode(MANUAL);  
         }
         else if (strncmp(param_buffer_first, "-m", 3) == 0 && config.mode == MANUAL){
             printf("Already running in manual mode.\n");
@@ -81,7 +82,7 @@ int processCommand(char *input){
         if(args_ok){
             float duration;
             duration = atof(param_buffer_first);
-            
+            printf("Filtration will run for %f minutes\nAre you sure you want proceed?\n[y/n]", duration*60);
             int ret = recieveConfirmation(input);
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
@@ -93,11 +94,17 @@ int processCommand(char *input){
     {
         bool args_ok = true;
         //TO DO: check args
+        if(strncmp(param_buffer_first, "", MAX_LENGHT) == 0 && strncmp(param_buffer_second, "" , MAX_LENGHT) == 0){
+            args_ok = false;
+            pthread_mutex_lock(&config_mutex);
+            printf("Current configuration:\nMode");
+            pthread_mutex_unlock(&config_mutex);
+        }
+        if(!checkArgumentFloat(param_buffer_first) || !checkArgument(param_buffer_second)) args_ok = false;
         
         if(args_ok){
             float new_duration = atof(param_buffer_first);
             uint16_t new_time = atoi(param_buffer_second);
-            printf("Filtration will run for %f minutes");
             int ret = recieveConfirmation(input);
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
@@ -176,9 +183,12 @@ bool checkArgument(char *arg){
 bool checkArgumentFloat(char *arg){
     if(arg == NULL) return false;
     int index = 0;
+    bool hasDecimalPoint = false;
     while ((arg[index] != '\0' && arg[index] != '\n') && index < MAX_DIGITS)
     {
-        if((arg[index] < '0' || arg[index] > '9') && arg[index] != '.') return false; 
+        if(arg[index] == '.' && hasDecimalPoint) return false;
+        if((arg[index] < '0' || arg[index] > '9') && arg[index] != '.') return false;
+        if(arg[index] == '.') hasDecimalPoint = true; 
         index++;
     }
     if(arg[index] != '\0' && arg[index] != '\n') return false; 
@@ -204,11 +214,11 @@ bool splitToBuffers(char *input, char *cmd_buffer, char *param_buffer_first, cha
                     return false;
                 }
             }
+            cmd_buffer[index] = '\0';
             if(input[index] != '\0'){
                 current_buffer++;
                 index++;
             }
-            cmd_buffer[index] = '\0';
             break;
         case 2:
             buffer_index = 0;
@@ -223,11 +233,11 @@ bool splitToBuffers(char *input, char *cmd_buffer, char *param_buffer_first, cha
                     return false;
                 }
             }
+            param_buffer_first[buffer_index] = '\0';
             if(input[index] != '\0'){
                 current_buffer++;
                 index++;
             }
-            param_buffer_first[buffer_index] = '\0';
             break;
         case 3:
             buffer_index = 0;

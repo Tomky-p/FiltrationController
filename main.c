@@ -4,13 +4,12 @@
 #include <string.h>
 
 #ifndef MAX_DURATION
-//The maximum duration of water to be realeased in a cycle (in liters)
-#define MAX_DURATION 6
+//The maximum duration of a filtration cycle
+#define MAX_DURATION 18
 #endif
 
-//
-#define MAX_HOURS 23
-#define MAX_MINUTES 59
+//The maxium time to be inputted from 0:00 to 23:59
+#define MAX_TIME 2359
 
 //thread function manages the irrigation process in automatic mode
 void* automaticController();
@@ -40,8 +39,9 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
     arg_value = atof(argv[2]);
+    //printf("%f\n",arg_value);
     if(arg_value <= 0 || arg_value > MAX_DURATION){
-        fprintf(stderr, "Invalid argument, duration must be in between .\n");
+        fprintf(stderr, "Invalid argument, duration must be in between 1 minute and 18 hours.\n");
         return EXIT_FAILURE;
     }
     config.duration = arg_value;
@@ -51,14 +51,14 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
     arg_value = (float)atoi(argv[3]);
-    if(arg_value > (MAX_HOURS*10)+MAX_MINUTES || arg_value < 0){
+    if(arg_value > MAX_TIME || arg_value < 0){
         fprintf(stderr, "Invalid argument, provided invalid time USAGE: provide int that = (desired hour) * 10 + desired minute i.e. 22:15 = 22*10 + 15.\n");
         return EXIT_FAILURE;
     }
     config.time = (int)arg_value;
     config.running = true;
 
-    printf("Starting with following configuration:\nmode: %d\nduration: %f\ntime: %d\n", config.mode, config.duration, config.time);
+    printf("Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n", config.mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
 
     int *AF_thread_result = NULL;
     int *CMD_thread_result = NULL;
@@ -107,6 +107,7 @@ int main(int argc, char *argv[]){
 void* automaticController(){   
     int *ret = malloc(sizeof(int));
     *ret = EXIT_SUCCESS;
+    printf("Launching automatic filtration thread.\n");
     while (config.running)
     {
         
@@ -129,7 +130,7 @@ void* cmdManager(){
         pthread_mutex_unlock(&config_mutex);
         *ret = readCmd(&command);
         if(*ret == READING_SUCCESS){
-            printf("Executing: %s\n", command);
+            //printf("Executing: %s\n", command);
             *ret = processCommand(command);
         }
         if(*ret == ALLOCATION_ERR){

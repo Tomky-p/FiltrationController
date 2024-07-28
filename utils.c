@@ -56,7 +56,7 @@ int processCommand(char *input){
         else if (strncmp(param_buffer_first, "-a", 3) == 0 && config.mode == AUTO){
             printf("Already running in automatic mode.\n");
         }
-        else if(strncmp(param_buffer_first, "-a", 3) == 0 && config.mode != AUTO){
+        else if (strncmp(param_buffer_first, "-a", 3) == 0 && config.mode != AUTO){
             printf("Switching to automatic mode...\n");
             config.mode = AUTO;
             //switchMode(AUTO);           
@@ -79,6 +79,9 @@ int processCommand(char *input){
     }
     else if (strncmp(cmd_buffer, "run", 4) == 0)
     {   
+        /*
+            TO DO: include checks if the filtration is currently running to prevent overlaping filtration cycles.
+        */
         pthread_mutex_lock(&config_mutex);
         if(config.mode == AUTO){
             fprintf(stderr, "Currently running in automatic mode, to use run command switch to manual mode.\n");
@@ -86,13 +89,16 @@ int processCommand(char *input){
         }
         pthread_mutex_unlock(&config_mutex);
  
-        if((args_ok && !checkArgumentFloat(param_buffer_first)) || (atof(param_buffer_first) == 0 && args_ok)){
+        if((args_ok && !checkArgumentFloat(param_buffer_first)) || (atof(param_buffer_first) <= 0 && args_ok) || (atof(param_buffer_first) > MAX_DURATION && args_ok)){
             args_ok = false;
             fprintf(stderr, "Invalid argument, provide a decimal number as duration in hours. Between 0 and 18 hours.\n");
         }
+        if(args_ok && strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
+            args_ok = false;
+            fprintf(stderr, "Invalid arguments, provide only one argument.\n");
+        }
         if(args_ok){
-            float duration;
-            duration = atof(param_buffer_first);
+            float duration = atof(param_buffer_first);
             printf("Filtration will run for %0.f minutes\nAre you sure you want proceed?\n[y/n]", duration*60);
             int ret = recieveConfirmation(input);
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
@@ -101,7 +107,7 @@ int processCommand(char *input){
                 //runFiltration(duration);
             }
             else{
-                printf("Aborting.\n");
+                printf("Aborted.\n");
             }   
         }    
     }
@@ -115,19 +121,25 @@ int processCommand(char *input){
             pthread_mutex_unlock(&config_mutex);
         }
         if(!checkArgumentFloat(param_buffer_first) || !checkArgument(param_buffer_second)) args_ok = false;
-        //TO DO: check value of args
-        //if
-        
+
+        if((args_ok && atof(param_buffer_first) <= 0) || (args_ok && atoi(param_buffer_second) < 0)
+         || (args_ok && atof(param_buffer_first) > MAX_DURATION) || (args_ok && atoi(param_buffer_second) > MAX_TIME)) args_ok = false;
+    
         if(args_ok){
             float new_duration = atof(param_buffer_first);
             uint16_t new_time = atoi(param_buffer_second);
+            printf("Set new configuration? Duration: %0.f minutes\n Time: %d:%d\nAre you sure you want proceed?\n[y/n]", new_duration*60, new_time/100, new_time-((new_time/100)*100));
             int ret = recieveConfirmation(input);
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
                 pthread_mutex_lock(&config_mutex);
                 config.duration = new_duration;
                 config.time = new_time;
+                printf("Configuration set to:\nDuration: %0.f minutes\nTime: %d:%d", config.duration*60, config.time/100, config.time-((config.time/100)*100));
                 pthread_mutex_unlock(&config_mutex);
+            }
+            else{
+                printf("Aborted.\n");
             }
         } 
     }
@@ -146,6 +158,9 @@ int processCommand(char *input){
                 config.running = false;
                 pthread_mutex_unlock(&config_mutex);
             }
+            else{
+                printf("Aborted.\n");
+            }
         }
     }
     else{
@@ -162,9 +177,6 @@ int readCmd(char **command)
     unsigned capacity = STARTING_CAPACITY;
     unsigned curLength = 0;
     char c;
-
-    *command = (char*)malloc(capacity);
-    if (*command == NULL) return ALLOCATION_ERR;
 
     while ((c = getchar()) != EOF && c != '\n' && c != '\0') {
         if(curLength >= MAX_LENGHT) return LENGHT_ERR;

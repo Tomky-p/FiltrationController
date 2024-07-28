@@ -4,9 +4,9 @@ CFLAGS = -Wall -std=c11 -pedantic -Wextra -g
 
 TARGET = FiltrationManager
 
-SRCS = main.c utils.c
+SRCS = main.c utils.c gpio_utils.c
 
-HEADERS = utils.h
+HEADERS = utils.h gpio_utils.h
 
 OBJS=$(SRCS:.c=.o)
 

@@ -11,6 +11,14 @@
 #define READING_SUCCESS 0
 #define MAX_DIGITS 5
 #define LENGHT_ERR 1
+
+#ifndef MAX_DURATION
+//The maximum duration of a filtration cycle
+#define MAX_DURATION 18
+#endif
+
+//The maxium time to be inputted from 0:00 to 23:59
+#define MAX_TIME 2359
                         
 #define AUTO 1
 #define MANUAL 0
@@ -23,6 +31,7 @@ typedef struct{
     float duration;
     uint16_t time;
     bool running;
+    bool filtration_running;
 }config_t;
 
 extern config_t config;

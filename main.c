@@ -3,14 +3,6 @@
 #include "utils.h"
 #include <string.h>
 
-#ifndef MAX_DURATION
-//The maximum duration of a filtration cycle
-#define MAX_DURATION 18
-#endif
-
-//The maxium time to be inputted from 0:00 to 23:59
-#define MAX_TIME 2359
-
 //thread function manages the irrigation process in automatic mode
 void* automaticController();
 
@@ -57,6 +49,7 @@ int main(int argc, char *argv[]){
     }
     config.time = (int)arg_value;
     config.running = true;
+    config.filtration_running = false;
 
     printf("Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n", config.mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
 
@@ -97,6 +90,8 @@ int main(int argc, char *argv[]){
     int CMD_ret = *CMD_thread_result;
     free(AF_thread_result);
     free(CMD_thread_result);
+    printf("%d\n", AF_ret);
+    printf("%d\n",CMD_ret);
 
     if(AF_ret != EXIT_SUCCESS) return AF_ret;
     if(CMD_ret != EXIT_SUCCESS) return CMD_ret;
@@ -117,7 +112,11 @@ void* automaticController(){
 
 void* cmdManager(){
     int *ret = malloc(sizeof(int));
-    char *command = NULL;
+    char *command = (char*)malloc(STARTING_CAPACITY);
+    if (command == NULL){
+        *ret = ALLOCATION_ERR;
+        return (void*)ret;
+    } 
     printf("Launching command line listener thread.\n");
 
     //command line control thread

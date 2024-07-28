@@ -46,21 +46,31 @@ int processCommand(char *input){
         free(param_buffer_second);
         return EXIT_SUCCESS;
     }
-    printf("command: %s\nfirst parameter: %s\nsecond parameter %s\n", cmd_buffer, param_buffer_first, param_buffer_second);
-
+    //printf("command: %s\nfirst parameter: %s\nsecond parameter %s\n", cmd_buffer, param_buffer_first, param_buffer_second);
+    bool args_ok = true;
     if(strncmp(cmd_buffer, "mode", 5) == 0){
         pthread_mutex_lock(&config_mutex);
-        if(strncmp(param_buffer_first, "-a", 3) == 0 && config.mode != AUTO){
-            //switchMode(AUTO);           
-        }
+        if (strncmp(param_buffer_second, "", MAX_LENGHT) != 0){
+            fprintf(stderr, "Too many parameters, USAGE: -m for manual or -a for automatic mode.\n");
+        }     
         else if (strncmp(param_buffer_first, "-a", 3) == 0 && config.mode == AUTO){
             printf("Already running in automatic mode.\n");
+        }
+        else if(strncmp(param_buffer_first, "-a", 3) == 0 && config.mode != AUTO){
+            printf("Switching to automatic mode...\n");
+            config.mode = AUTO;
+            //switchMode(AUTO);           
         }    
         else if (strncmp(param_buffer_first, "-m", 3) == 0 && config.mode != MANUAL){
+            printf("Switching to manual mode...\n");
+            config.mode = MANUAL;
             //switchMode(MANUAL);  
         }
         else if (strncmp(param_buffer_first, "-m", 3) == 0 && config.mode == MANUAL){
             printf("Already running in manual mode.\n");
+        }
+        else if (strncmp(param_buffer_first, "", MAX_LENGHT) == 0){
+            fprintf(stderr, "Too few parameters, USAGE: -m for manual or -a for automatic mode.\n");        
         }
         else{
             fprintf(stderr, "Unrecognized parameter, USAGE: -m for manual or -a for automatic mode.\n");
@@ -69,7 +79,6 @@ int processCommand(char *input){
     }
     else if (strncmp(cmd_buffer, "run", 4) == 0)
     {   
-        bool args_ok = true;
         pthread_mutex_lock(&config_mutex);
         if(config.mode == AUTO){
             fprintf(stderr, "Currently running in automatic mode, to use run command switch to manual mode.\n");
@@ -77,30 +86,37 @@ int processCommand(char *input){
         }
         pthread_mutex_unlock(&config_mutex);
  
-        if(args_ok && !checkArgumentFloat(param_buffer_first)) args_ok = false;
-
+        if((args_ok && !checkArgumentFloat(param_buffer_first)) || (atof(param_buffer_first) == 0 && args_ok)){
+            args_ok = false;
+            fprintf(stderr, "Invalid argument, provide a decimal number as duration in hours. Between 0 and 18 hours.\n");
+        }
         if(args_ok){
             float duration;
             duration = atof(param_buffer_first);
-            printf("Filtration will run for %f minutes\nAre you sure you want proceed?\n[y/n]", duration*60);
+            printf("Filtration will run for %0.f minutes\nAre you sure you want proceed?\n[y/n]", duration*60);
             int ret = recieveConfirmation(input);
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
+                printf("Proceeding...\nLaunching filtration for %0.f minutes.\n", duration*60);
                 //runFiltration(duration);
+            }
+            else{
+                printf("Aborting.\n");
             }   
         }    
     }
     else if (strncmp(cmd_buffer, "config", 7) == 0)
     {
-        bool args_ok = true;
-        //TO DO: check args
         if(strncmp(param_buffer_first, "", MAX_LENGHT) == 0 && strncmp(param_buffer_second, "" , MAX_LENGHT) == 0){
             args_ok = false;
             pthread_mutex_lock(&config_mutex);
-            printf("Current configuration:\nMode");
+            char *mode = config.mode == AUTO? "automatic" : "manual";
+            printf("Current configuration:\nMode: %s\nDuration: %0.f minutes\nTime: %d:%d", mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
             pthread_mutex_unlock(&config_mutex);
         }
         if(!checkArgumentFloat(param_buffer_first) || !checkArgument(param_buffer_second)) args_ok = false;
+        //TO DO: check value of args
+        //if
         
         if(args_ok){
             float new_duration = atof(param_buffer_first);
@@ -117,8 +133,20 @@ int processCommand(char *input){
     }
     else if (strncmp(cmd_buffer, "stop", 5) == 0)
     {
-        pthread_mutex_lock(&config_mutex);
-        pthread_mutex_unlock(&config_mutex); 
+        if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
+            args_ok = false;
+        }
+        if(args_ok){
+            printf("WARNING! The filtration controler system will be terminated.\nAre you sure you want proceed?\n[y/n]");
+            int ret = recieveConfirmation(input);
+            if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
+            if(ret == YES){
+                pthread_mutex_lock(&config_mutex);
+                printf("Quitting program...\n");
+                config.running = false;
+                pthread_mutex_unlock(&config_mutex);
+            }
+        }
     }
     else{
         fprintf(stderr, "Command not recognized.\n");

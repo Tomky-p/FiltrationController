@@ -84,7 +84,7 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
     
-    if(pthread_join(automaticFiltration, (void**)&AF_thread_result) != 0 &&
+    if(pthread_join(automaticFiltration, (void**)&AF_thread_result) != 0 ||
     pthread_join(cmdMonitor, (void**)&CMD_thread_result) != 0){
         fprintf(stderr, "FATAL ERR! Failed to join threads.");
         pthread_mutex_destroy(&config_mutex);
@@ -110,10 +110,7 @@ void* automaticController(){
     printf("Launching automatic filtration thread.\n");
     while (config.running)
     {
-        
-        if(config.mode == AUTO){
 
-        }
     }
     return (void*)ret;
 }

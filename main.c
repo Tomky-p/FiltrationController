@@ -1,11 +1,14 @@
 #include <stdio.h>
 #include <pthread.h>
 #include "utils.h"
+#include "gpio_utils.h"
 #include <string.h>
+#include <time.h>
 
 //thread function manages the irrigation process in automatic mode
 void* automaticController();
 
+//thread function reads and processes input from the user through the command line
 void* cmdManager();
 
 //USAGE: ./irrigationManager [Mode][Amount (l)][Interval (min)]
@@ -103,8 +106,26 @@ void* automaticController(){
     int *ret = malloc(sizeof(int));
     *ret = EXIT_SUCCESS;
     printf("Launching automatic filtration thread.\n");
+
+    if(initGpioPinControl() == -1){
+        config.running = false;
+        return GPIO_ERR;
+    }
+
+    pthread_mutex_lock(&config_mutex);
     while (config.running)
     {
+        if(config.mode == AUTO){
+           
+        }
+        if(config.filtration_running){
+            float timeToskip = config.duration;
+            
+        }
+        pthread_mutex_unlock(&config_mutex);
+        delay(100);
+
+        pthread_mutex_lock(&config_mutex);
 
     }
     return (void*)ret;
@@ -115,6 +136,7 @@ void* cmdManager(){
     char *command = (char*)malloc(STARTING_CAPACITY);
     if (command == NULL){
         *ret = ALLOCATION_ERR;
+        config.running = false;
         return (void*)ret;
     } 
     printf("Launching command line listener thread.\n");
@@ -135,6 +157,7 @@ void* cmdManager(){
         }
         pthread_mutex_lock(&config_mutex);
     }
+    config.running = false;
     free(command);
     return (void*)ret;
 }

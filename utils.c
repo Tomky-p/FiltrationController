@@ -50,7 +50,10 @@ int processCommand(char *input){
     bool args_ok = true;
     if(strncmp(cmd_buffer, "mode", 5) == 0){
         pthread_mutex_lock(&config_mutex);
-        if (strncmp(param_buffer_second, "", MAX_LENGHT) != 0){
+        if(config.filtration_running){
+            fprintf(stderr, "Cannot switch the operating mode while the filtration is running.");
+        }
+        else if (strncmp(param_buffer_second, "", MAX_LENGHT) != 0){
             fprintf(stderr, "Too many parameters, USAGE: -m for manual or -a for automatic mode.\n");
         }     
         else if (strncmp(param_buffer_first, "-a", 3) == 0 && config.mode == AUTO){
@@ -117,7 +120,7 @@ int processCommand(char *input){
             args_ok = false;
             pthread_mutex_lock(&config_mutex);
             char *mode = config.mode == AUTO? "automatic" : "manual";
-            printf("Current configuration:\nMode: %s\nDuration: %0.f minutes\nTime: %d:%d", mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
+            printf("Current configuration:\nMode: %s\nDuration: %0.f minutes\nTime: %d:%d\n", mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
             pthread_mutex_unlock(&config_mutex);
         }
         if(!checkArgumentFloat(param_buffer_first) || !checkArgument(param_buffer_second)) args_ok = false;
@@ -128,14 +131,14 @@ int processCommand(char *input){
         if(args_ok){
             float new_duration = atof(param_buffer_first);
             uint16_t new_time = atoi(param_buffer_second);
-            printf("Set new configuration? Duration: %0.f minutes\n Time: %d:%d\nAre you sure you want proceed?\n[y/n]", new_duration*60, new_time/100, new_time-((new_time/100)*100));
+            printf("Set new configuration? Duration: %0.f minutes\nTime: %d:%d\nAre you sure you want proceed?\n[y/n]", new_duration*60, new_time/100, new_time-((new_time/100)*100));
             int ret = recieveConfirmation(input);
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
                 pthread_mutex_lock(&config_mutex);
                 config.duration = new_duration;
                 config.time = new_time;
-                printf("Configuration set to:\nDuration: %0.f minutes\nTime: %d:%d", config.duration*60, config.time/100, config.time-((config.time/100)*100));
+                printf("Configuration set to:\nDuration: %0.f minutes\nTime: %d:%d\n", config.duration*60, config.time/100, config.time-((config.time/100)*100));
                 pthread_mutex_unlock(&config_mutex);
             }
             else{

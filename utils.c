@@ -362,6 +362,7 @@ int sendRunSignal(float duration){
     pthread_mutex_lock(&config_mutex);
     config.run_until = timeArithmeticAdd(curtime, duration);
     pthread_mutex_unlock(&config_mutex);
+    return READING_SUCCESS;
     
 }
 int timeArithmeticAdd(int time, float duration){

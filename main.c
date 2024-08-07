@@ -53,7 +53,7 @@ int main(int argc, char *argv[]){
     config.time = (int)arg_value;
     config.running = true;
     config.filtration_running = false;
-    config.run_until = -1;
+    config.run_until = MAX_TIME + 1;
 
     printf("Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n", config.mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
 
@@ -110,7 +110,8 @@ void* automaticController(){
 
     if(initGpioPinControl() == -1){
         config.running = false;
-        return GPIO_ERR;
+        *ret = GPIO_ERR;
+        return (void*)ret;
     }
 
     pthread_mutex_lock(&config_mutex);
@@ -128,10 +129,9 @@ void* automaticController(){
             pthread_mutex_unlock(&config_mutex);
             runFilration(duration);
         }
-        else if(config.mode == MANUAL && config.run_until != -1){
-            //TO DO add functions to calculate time
+        else if(config.mode == MANUAL && config.run_until != MAX_TIME + 1){
             float duration = (float)(config.run_until - curtime)/(float)60;
-            config.run_until = -1; 
+            config.run_until = MAX_TIME + 1; 
             pthread_mutex_unlock(&config_mutex);
             runFilration(duration);
         }
@@ -167,7 +167,7 @@ void* cmdManager(){
             fprintf(stderr, "FATAL ERR! Memory allocation failure.\n");
             break;
         }
-        if(ret == TIME_ERR){
+        if(*ret == TIME_ERR){
             fprintf(stderr, "FATAL ERR! Failed to get current time.");
             break;
         }

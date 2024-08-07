@@ -1,6 +1,6 @@
 CC = clang
 
-CFLAGS = -Wall -std=c11 -pedantic -Wextra -g -l wiringPi
+CFLAGS = -Wall -std=c11 -pedantic -Wextra -g -lwiringPi
 
 TARGET = FiltrationManager
 

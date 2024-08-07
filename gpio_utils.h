@@ -14,3 +14,5 @@ int initGpioPinControl();
 void runFilration(float duration);
 
 void shutdownFiltration();
+
+void launchFiltration();

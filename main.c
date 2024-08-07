@@ -53,6 +53,7 @@ int main(int argc, char *argv[]){
     config.time = (int)arg_value;
     config.running = true;
     config.filtration_running = false;
+    config.run_until = -1;
 
     printf("Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n", config.mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
 
@@ -113,20 +114,31 @@ void* automaticController(){
     }
 
     pthread_mutex_lock(&config_mutex);
+
     while (config.running)
-    {
-        if(config.mode == AUTO){
-           
+    {    
+        int curtime = getCurrentTime();
+        if(curtime == TIME_ERR){
+            *ret = TIME_ERR;
+            config.running = false;
+            return (void*)ret;
         }
-        if(config.filtration_running){
-            float timeToskip = config.duration;
-            
+        if(config.mode == AUTO && curtime == config.time && !config.filtration_running){        
+            float duration = config.duration;
+            pthread_mutex_unlock(&config_mutex);
+            runFilration(duration);
         }
-        pthread_mutex_unlock(&config_mutex);
+        else if(config.mode == MANUAL && config.run_until != -1){
+            //TO DO add functions to calculate time
+            float duration = (float)(config.run_until - curtime)/(float)60;
+            config.run_until = -1; 
+            pthread_mutex_unlock(&config_mutex);
+            runFilration(duration);
+        }
+        else{
+            pthread_mutex_unlock(&config_mutex);
+        }
         delay(100);
-
-        pthread_mutex_lock(&config_mutex);
-
     }
     return (void*)ret;
 }
@@ -153,6 +165,10 @@ void* cmdManager(){
         }
         if(*ret == ALLOCATION_ERR){
             fprintf(stderr, "FATAL ERR! Memory allocation failure.\n");
+            break;
+        }
+        if(ret == TIME_ERR){
+            fprintf(stderr, "FATAL ERR! Failed to get current time.");
             break;
         }
         pthread_mutex_lock(&config_mutex);

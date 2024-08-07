@@ -8,6 +8,7 @@
 #define STARTING_CAPACITY 4
 #define MAX_LENGHT 25            
 #define ALLOCATION_ERR -1
+#define TIME_ERR -2
 #define READING_SUCCESS 0
 #define MAX_DIGITS 5
 #define LENGHT_ERR 1
@@ -31,6 +32,7 @@ typedef struct{
     float duration;
     uint16_t time;
     bool running;
+    uint16_t run_until;
     bool filtration_running;
 }config_t;
 
@@ -46,6 +48,14 @@ bool checkArgument(char *arg);
 //Proccess the commands from user, updates the config for irrigation thread and runs irrigation in manual mode
 int processCommand(char *input);
 
+//returns current clock time as an int in the 23:59 = 2359 format
+int getCurrentTime();
+
+//adds an int time value together with float duration value and returns a correct int time
+int timeArithmeticAdd(int time, float duration);
+
+//signals to the automatic thread to run and when to shutdown
+int sendRunSignal(float duration);
 /*
 * Separate input command into separate command and parameter buffers for processing of command
 * RETURNS:

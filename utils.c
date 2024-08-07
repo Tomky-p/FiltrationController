@@ -5,7 +5,7 @@
 #include <time.h>
 #include <string.h>
 #include "utils.h"
-
+#include "gpio_utils.h"
 
 /*
 //LIST OF ALL COMMANDS
@@ -82,12 +82,13 @@ int processCommand(char *input){
     }
     else if (strncmp(cmd_buffer, "run", 4) == 0)
     {   
-        /*
-            TO DO: include checks if the filtration is currently running to prevent overlaping filtration cycles.
-        */
         pthread_mutex_lock(&config_mutex);
         if(config.mode == AUTO){
             fprintf(stderr, "Currently running in automatic mode, to use run command switch to manual mode.\n");
+            args_ok = false;
+        }
+        if(config.filtration_running){
+            fprintf(stderr, "Filtration is already running, wait for the cycle to finish or terminate it to run again.\n");
             args_ok = false;
         }
         pthread_mutex_unlock(&config_mutex);
@@ -107,7 +108,8 @@ int processCommand(char *input){
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
                 printf("Proceeding...\nLaunching filtration for %0.f minutes.\n", duration*60);
-                //runFiltration(duration);
+                ret = sendRunSignal(duration);
+                if(ret == TIME_ERR) return TIME_ERR;
             }
             else{
                 printf("Aborted.\n");
@@ -116,6 +118,7 @@ int processCommand(char *input){
     }
     else if (strncmp(cmd_buffer, "config", 7) == 0)
     {
+        //TO DO: stop user from changing config especiall the mode whilst filtration is running.
         if(strncmp(param_buffer_first, "", MAX_LENGHT) == 0 && strncmp(param_buffer_second, "" , MAX_LENGHT) == 0){
             args_ok = false;
             pthread_mutex_lock(&config_mutex);
@@ -146,6 +149,7 @@ int processCommand(char *input){
             }
         } 
     }
+    //TO DO swap the functionalities of the stop and kill command
     else if (strncmp(cmd_buffer, "stop", 5) == 0)
     {
         if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
@@ -159,12 +163,36 @@ int processCommand(char *input){
                 pthread_mutex_lock(&config_mutex);
                 printf("Quitting program...\n");
                 config.running = false;
+                shutdownFiltration();
                 pthread_mutex_unlock(&config_mutex);
             }
             else{
                 printf("Aborted.\n");
             }
         }
+    }
+    //TO DO implement the stop and kill command
+    else if (strncmp(cmd_buffer, "kill", 5) == 0)
+    {
+        /*if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
+            args_ok = false;
+        }
+        if(args_ok){
+            printf("WARNING! The filtration controler system will be terminated.\nAre you sure you want proceed?\n[y/n]");
+            int ret = recieveConfirmation(input);
+            if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
+            if(ret == YES){
+                pthread_mutex_lock(&config_mutex);
+                printf("Quitting program...\n");
+                config.running = false;
+                shutdownFiltration();
+                pthread_mutex_unlock(&config_mutex);
+            }
+            else{
+                printf("Aborted.\n");
+            }
+        }*/
+       printf("kill\n");
     }
     else{
         fprintf(stderr, "Command not recognized.\n");
@@ -318,4 +346,27 @@ int recieveConfirmation(char *command){
     if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
     if(ret != READING_SUCCESS || strncmp(command, "y", 2) != 0) return NO;
     else return YES;
+}
+
+int getCurrentTime(){
+    time_t now = time(NULL);
+    struct tm *currentTime = localtime(&now);
+    if (currentTime == NULL) return TIME_ERR;
+    return (currentTime->tm_hour*100 + currentTime->tm_min);
+}
+
+int sendRunSignal(float duration){
+    int curtime = getCurrentTime();
+    if(curtime == TIME_ERR) return TIME_ERR;
+
+    pthread_mutex_lock(&config_mutex);
+    config.run_until = timeArithmeticAdd(curtime, duration);
+    pthread_mutex_unlock(&config_mutex);
+    
+}
+int timeArithmeticAdd(int time, float duration){
+    int minutes = duration * 60;
+    int hours = minutes/60;
+    minutes = minutes % 60;
+    return (time + hours*100 + minutes);
 }

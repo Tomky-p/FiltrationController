@@ -18,12 +18,10 @@ int main(int argc, char *argv[]){
         fprintf(stderr, "Not enough arguments, USAGE: ./FiltrationController [Mode of(-a/-m)] [duration of filtration cycle in hours] [Time between cycles in minutes]\n");
         return EXIT_FAILURE;
     }
-    //process variables 
-    //config_t init_config;
-    float arg_value = 0;
     //argument parsing
-    if(strncmp(argv[1], "-m", 2) == 0) config.mode = MANUAL;
-    else if (strncmp(argv[1], "-a", 2) == 0) config.mode = AUTO;
+    float arg_value = 0;
+    if(strncmp(argv[1], "-m", 3) == 0) config.mode = MANUAL;
+    else if (strncmp(argv[1], "-a", 3) == 0) config.mode = AUTO;
     else{
         fprintf(stderr, "Invalid argument, USAGE: -a for Automatic irrigation, -m for manual irrigation.\n");
         return EXIT_FAILURE;
@@ -34,7 +32,6 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
     arg_value = atof(argv[2]);
-    //printf("%f\n",arg_value);
     if(arg_value <= 0 || arg_value > MAX_DURATION){
         fprintf(stderr, "Invalid argument, duration must be in between 1 minute and 18 hours.\n");
         return EXIT_FAILURE;
@@ -46,8 +43,8 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
     arg_value = (float)atoi(argv[3]);
-    if(arg_value > MAX_TIME || arg_value < 0){
-        fprintf(stderr, "Invalid argument, provided invalid time USAGE: provide int that = (desired hour) * 10 + desired minute i.e. 22:15 = 22*10 + 15.\n");
+    if(isIntTime(arg_value) == false){
+        fprintf(stderr, "Invalid argument, provided invalid time USAGE: provide int that = (desired hour) * 10 + desired minute i.e. 22:15 = 2215.\n");
         return EXIT_FAILURE;
     }
     config.time = (int)arg_value;
@@ -57,8 +54,8 @@ int main(int argc, char *argv[]){
 
     printf("Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n", config.mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
 
-    int *AF_thread_result = NULL;
-    int *CMD_thread_result = NULL;
+    int *AF_thread_result;
+    int *CMD_thread_result;
 
     //command line monitoring and handling thread
     pthread_t cmdMonitor;
@@ -80,14 +77,14 @@ int main(int argc, char *argv[]){
         pthread_mutex_destroy(&config_mutex);
         return EXIT_FAILURE;
     }
-    
+    //join threads
     if(pthread_join(automaticFiltration, (void**)&AF_thread_result) != 0 ||
     pthread_join(cmdMonitor, (void**)&CMD_thread_result) != 0){
         fprintf(stderr, "FATAL ERR! Failed to join threads.");
         pthread_mutex_destroy(&config_mutex);
         return EXIT_FAILURE;
     }
-
+    shutdownFiltration();
     pthread_mutex_destroy(&config_mutex);
 
     int AF_ret = *AF_thread_result;
@@ -107,15 +104,14 @@ void* automaticController(){
     int *ret = malloc(sizeof(int));
     *ret = EXIT_SUCCESS;
     printf("Launching automatic filtration thread.\n");
-
+    
+    //initialize gpio pin interface
     if(initGpioPinControl() == -1){
         config.running = false;
         *ret = GPIO_ERR;
         return (void*)ret;
     }
-
     pthread_mutex_lock(&config_mutex);
-
     while (config.running)
     {    
         int curtime = getCurrentTime();
@@ -124,6 +120,9 @@ void* automaticController(){
             config.running = false;
             return (void*)ret;
         }
+        //printf("Mode: %d\n", config.mode);
+        //printf("Running: %s\n", config.filtration_running ? "true" : "false");
+        //printf("curtime: %d\n", curtime);
         if(config.mode == AUTO && curtime == config.time && !config.filtration_running){        
             float duration = config.duration;
             pthread_mutex_unlock(&config_mutex);
@@ -131,6 +130,7 @@ void* automaticController(){
         }
         else if(config.mode == MANUAL && config.run_until != MAX_TIME + 1){
             float duration = (float)(config.run_until - curtime)/(float)60;
+            //invalidate the run until time
             config.run_until = MAX_TIME + 1; 
             pthread_mutex_unlock(&config_mutex);
             runFilration(duration);
@@ -138,8 +138,11 @@ void* automaticController(){
         else{
             pthread_mutex_unlock(&config_mutex);
         }
+        //wait 100ms NOTE: cannot be over a minute
         delay(100);
+        pthread_mutex_lock(&config_mutex);
     }
+    pthread_mutex_unlock(&config_mutex);
     return (void*)ret;
 }
 
@@ -173,6 +176,7 @@ void* cmdManager(){
         }
         pthread_mutex_lock(&config_mutex);
     }
+    pthread_mutex_unlock(&config_mutex);
     config.running = false;
     free(command);
     return (void*)ret;

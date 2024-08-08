@@ -56,6 +56,9 @@ int timeArithmeticAdd(int time, float duration);
 
 //signals to the automatic thread to run and when to shutdown
 int sendRunSignal(float duration);
+
+//checks if a provided int is a valid time value
+bool isIntTime(int time_val);
 /*
 * Separate input command into separate command and parameter buffers for processing of command
 * RETURNS:

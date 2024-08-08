@@ -9,10 +9,14 @@
 #define DEVICE_PIN_NUMBER 22
 #endif
 
+//initializes the GPIO pin interface
 int initGpioPinControl();
 
+//runs the filtration for a certain amount of time
 void runFilration(float duration);
 
+//turns off the filtration
 void shutdownFiltration();
 
+//turns on the filtration
 void launchFiltration();

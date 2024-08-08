@@ -51,7 +51,7 @@ int processCommand(char *input){
     if(strncmp(cmd_buffer, "mode", 5) == 0){
         pthread_mutex_lock(&config_mutex);
         if(config.filtration_running){
-            fprintf(stderr, "Cannot switch the operating mode while the filtration is running.");
+            fprintf(stderr, "Cannot switch the operating mode while the filtration is running.\n");
         }
         else if (strncmp(param_buffer_second, "", MAX_LENGHT) != 0){
             fprintf(stderr, "Too many parameters, USAGE: -m for manual or -a for automatic mode.\n");
@@ -126,11 +126,23 @@ int processCommand(char *input){
             printf("Current configuration:\nMode: %s\nDuration: %0.f minutes\nTime: %d:%d\n", mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
             pthread_mutex_unlock(&config_mutex);
         }
+        pthread_mutex_lock(&config_mutex);
+        if(args_ok && config.filtration_running){
+            fprintf(stderr, "Filtration is currently running. Cannot change config now.\n");
+            args_ok = false;
+        }
+        pthread_mutex_unlock(&config_mutex);
         if(!checkArgumentFloat(param_buffer_first) || !checkArgument(param_buffer_second)) args_ok = false;
 
         if((args_ok && atof(param_buffer_first) <= 0) || (args_ok && atoi(param_buffer_second) < 0)
-         || (args_ok && atof(param_buffer_first) > MAX_DURATION) || (args_ok && atoi(param_buffer_second) > MAX_TIME)) args_ok = false;
-    
+         || (args_ok && atof(param_buffer_first) > MAX_DURATION) || (args_ok && atoi(param_buffer_second) > MAX_TIME)){
+            fprintf(stderr, "Provided parameters are invalid! USAGE: config [mode](-a/-m) [duration](float between 0 and 18) [time](int where 11:30 = 1130 for example)\n");
+            args_ok = false;
+        } 
+        if(args_ok && !isIntTime(atoi(param_buffer_second))){
+            fprintf(stderr, "Provided time is invalid. Provide a int corresponding to a time of day in format: 1135 (= 11:35)\n");
+            args_ok = false;
+        }
         if(args_ok){
             float new_duration = atof(param_buffer_first);
             uint16_t new_time = atoi(param_buffer_second);
@@ -150,7 +162,7 @@ int processCommand(char *input){
         } 
     }
     //TO DO swap the functionalities of the stop and kill command
-    else if (strncmp(cmd_buffer, "stop", 5) == 0)
+    else if (strncmp(cmd_buffer, "kill", 5) == 0)
     {
         if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
             args_ok = false;
@@ -163,8 +175,8 @@ int processCommand(char *input){
                 pthread_mutex_lock(&config_mutex);
                 printf("Quitting program...\n");
                 config.running = false;
-                shutdownFiltration();
                 pthread_mutex_unlock(&config_mutex);
+                shutdownFiltration();
             }
             else{
                 printf("Aborted.\n");
@@ -172,27 +184,32 @@ int processCommand(char *input){
         }
     }
     //TO DO implement the stop and kill command
-    else if (strncmp(cmd_buffer, "kill", 5) == 0)
+    else if (strncmp(cmd_buffer, "stop", 5) == 0)
     {
-        /*if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
+        if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
+            fprintf(stderr, "This command does not take any parameters.\n");
             args_ok = false;
         }
+        pthread_mutex_lock(&config_mutex);
+        if(!config.filtration_running){
+            fprintf(stderr, "The filtration is currently not running.\n");
+            args_ok = false;
+        }
+        pthread_mutex_unlock(&config_mutex);
         if(args_ok){
-            printf("WARNING! The filtration controler system will be terminated.\nAre you sure you want proceed?\n[y/n]");
+            printf("The filtration currently running.\nAre you sure you want stop the current filtration cycle?\n[y/n]");
             int ret = recieveConfirmation(input);
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
+                printf("Stopping filtration...\n");
                 pthread_mutex_lock(&config_mutex);
-                printf("Quitting program...\n");
-                config.running = false;
-                shutdownFiltration();
+                config.filtration_running = false;
                 pthread_mutex_unlock(&config_mutex);
             }
             else{
                 printf("Aborted.\n");
             }
-        }*/
-       printf("kill\n");
+        }
     }
     else{
         fprintf(stderr, "Command not recognized.\n");
@@ -370,4 +387,11 @@ int timeArithmeticAdd(int time, float duration){
     int hours = minutes/60;
     minutes = minutes % 60;
     return (time + hours*100 + minutes);
+}
+
+bool isIntTime(int time_val){
+    if(time_val > MAX_TIME || time_val < 0) return false;
+    int minutes = time_val % 100;
+    if(minutes > 59 || minutes < 0) return false;
+    return true;
 }

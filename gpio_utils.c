@@ -13,7 +13,15 @@ int initGpioPinControl(){
 void runFilration(float duration){
     float in_miliseconds = ((duration*60)*60)*1000;
     launchFiltration();
-    delay(in_miliseconds);
+    pthread_mutex_lock(&config_mutex);
+    while (config.filtration_running && in_miliseconds > 0)
+    {
+        pthread_mutex_unlock(&config_mutex);
+        delay(1000);
+        in_miliseconds = in_miliseconds - 1000;
+        pthread_mutex_lock(&config_mutex);
+    }
+    pthread_mutex_unlock(&config_mutex);
     shutdownFiltration();
 }
 

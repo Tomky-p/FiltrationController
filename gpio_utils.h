@@ -6,7 +6,7 @@
 #define GPIO_ERR 101
 
 #ifndef DEVICE_PIN_NUMBER
-#define DEVICE_PIN_NUMBER 22
+#define DEVICE_PIN_NUMBER 5
 #endif
 
 //initializes the GPIO pin interface

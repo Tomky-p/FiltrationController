@@ -27,7 +27,9 @@ void runFilration(float duration){
         pthread_mutex_lock(&config_mutex);
     }
     pthread_mutex_unlock(&config_mutex);
-    shutdownFiltration();
+    if(checkDeviceState()){
+        shutdownFiltration();
+    }
 }
 
 void shutdownFiltration(){

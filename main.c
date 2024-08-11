@@ -84,15 +84,17 @@ int main(int argc, char *argv[]){
         pthread_mutex_destroy(&config_mutex);
         return EXIT_FAILURE;
     }
-    shutdownFiltration();
+    if(checkDeviceState()){
+        shutdownFiltration();
+    }
     pthread_mutex_destroy(&config_mutex);
 
     int AF_ret = *AF_thread_result;
     int CMD_ret = *CMD_thread_result;
     free(AF_thread_result);
     free(CMD_thread_result);
-    printf("%d\n", AF_ret);
-    printf("%d\n",CMD_ret);
+    //printf("%d\n", AF_ret);
+    //printf("%d\n",CMD_ret);
 
     if(AF_ret != EXIT_SUCCESS) return AF_ret;
     if(CMD_ret != EXIT_SUCCESS) return CMD_ret;
@@ -128,7 +130,7 @@ void* automaticController(){
             pthread_mutex_unlock(&config_mutex);
             runFilration(duration);
         }
-        else if(config.mode == MANUAL && config.run_until != MAX_TIME + 1){
+        else if(config.mode == MANUAL && config.run_until < (MAX_TIME + 1)){
             float duration = (float)(config.run_until - curtime)/(float)60;
             //invalidate the run until time
             config.run_until = MAX_TIME + 1; 

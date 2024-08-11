@@ -12,6 +12,9 @@
 //initializes the GPIO pin interface
 int initGpioPinControl();
 
+//returns true if the filtration is on
+bool checkDeviceState();
+
 //runs the filtration for a certain amount of time
 void runFilration(float duration);
 

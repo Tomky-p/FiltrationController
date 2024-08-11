@@ -10,6 +10,11 @@ int initGpioPinControl(){
     return ret;
 }
 
+bool checkDeviceState(){
+    if(digitalRead(DEVICE_PIN_NUMBER) == HIGH) return true;
+    else return false;
+}
+
 void runFilration(float duration){
     float in_miliseconds = ((duration*60)*60)*1000;
     launchFiltration();

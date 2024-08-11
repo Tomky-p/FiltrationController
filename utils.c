@@ -7,6 +7,10 @@
 #include "utils.h"
 #include "gpio_utils.h"
 
+//initialize global (thread shared) variables 
+config_t config = {0};
+pthread_mutex_t config_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /*
 //LIST OF ALL COMMANDS
 - mode [mode] -(confirm)
@@ -23,12 +27,11 @@
     (int) new duration per cycle in liters
     (int) new time per cycle in minutes
 - stop -(confirm)
-    stops the intire programs
+    stops the current filtration cycle
+- kill -(confirm)
+    stops and quits the entire program
 
 */
-config_t config = {0};
-pthread_mutex_t config_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 int processCommand(char *input){
     char *cmd_buffer = (char*)calloc(MAX_LENGHT * sizeof(char), sizeof(char));
     char *param_buffer_first = (char*)calloc(MAX_LENGHT * sizeof(char), sizeof(char));
@@ -61,13 +64,11 @@ int processCommand(char *input){
         }
         else if (strncmp(param_buffer_first, "-a", 3) == 0 && config.mode != AUTO){
             printf("Switching to automatic mode...\n");
-            config.mode = AUTO;
-            //switchMode(AUTO);           
+            config.mode = AUTO;           
         }    
         else if (strncmp(param_buffer_first, "-m", 3) == 0 && config.mode != MANUAL){
             printf("Switching to manual mode...\n");
             config.mode = MANUAL;
-            //switchMode(MANUAL);  
         }
         else if (strncmp(param_buffer_first, "-m", 3) == 0 && config.mode == MANUAL){
             printf("Already running in manual mode.\n");
@@ -161,7 +162,7 @@ int processCommand(char *input){
             }
         } 
     }
-    //TO DO swap the functionalities of the stop and kill command
+    //TO DO implement the help command
     else if (strncmp(cmd_buffer, "kill", 5) == 0)
     {
         if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
@@ -176,7 +177,9 @@ int processCommand(char *input){
                 printf("Quitting program...\n");
                 config.running = false;
                 pthread_mutex_unlock(&config_mutex);
-                shutdownFiltration();
+                if(checkDeviceState()){
+                    shutdownFiltration();
+                }
             }
             else{
                 printf("Aborted.\n");

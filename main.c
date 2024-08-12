@@ -52,14 +52,17 @@ int main(int argc, char *argv[]){
     config.filtration_running = false;
     config.run_until = MAX_TIME + 1;
 
-    printf("Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n", config.mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
+    const char *start_string = (config.time % 100) < 10 ? "Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:0%d\n" : 
+                                                          "Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n";
+    printf(start_string, config.mode, (config.duration*60), (config.time/100), (config.time % 100));
+    //printf("Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n", config.mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
 
     int *AF_thread_result;
     int *CMD_thread_result;
 
     //command line monitoring and handling thread
     pthread_t cmdMonitor;
-    //irrigation executor thread
+    //filtration executor thread
     pthread_t automaticFiltration;
 
     if(pthread_mutex_init(&config_mutex, NULL) != 0){
@@ -84,6 +87,7 @@ int main(int argc, char *argv[]){
         pthread_mutex_destroy(&config_mutex);
         return EXIT_FAILURE;
     }
+    //shutdown if not already shutdown
     if(checkDeviceState()){
         shutdownFiltration();
     }
@@ -93,8 +97,6 @@ int main(int argc, char *argv[]){
     int CMD_ret = *CMD_thread_result;
     free(AF_thread_result);
     free(CMD_thread_result);
-    //printf("%d\n", AF_ret);
-    //printf("%d\n",CMD_ret);
 
     if(AF_ret != EXIT_SUCCESS) return AF_ret;
     if(CMD_ret != EXIT_SUCCESS) return CMD_ret;
@@ -108,11 +110,11 @@ void* automaticController(){
     printf("Launching automatic filtration thread.\n");
     
     //initialize gpio pin interface
-    if(initGpioPinControl() == -1){
+    /*if(initGpioPinControl() == ALLOCATION_ERR){
         config.running = false;
         *ret = GPIO_ERR;
         return (void*)ret;
-    }
+    }*/
     pthread_mutex_lock(&config_mutex);
     while (config.running)
     {    

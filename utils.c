@@ -11,27 +11,6 @@
 config_t config = {0};
 pthread_mutex_t config_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/*
-//LIST OF ALL COMMANDS
-- mode [mode] -(confirm)
-    changes mode of the system
-    parameters:
-    (mode) -a automatic operation -m manual
-- run [duration] -(confirm)
-    run in watering cycle in manual mode
-    parameters:
-    (int) duration in liters to be dispensed
-- config [duration] [time] -(confirm)
-    change the config for automatic mode
-    parameters:
-    (int) new duration per cycle in liters
-    (int) new time per cycle in minutes
-- stop -(confirm)
-    stops the current filtration cycle
-- kill -(confirm)
-    stops and quits the entire program
-
-*/
 int processCommand(char *input){
     char *cmd_buffer = (char*)calloc(MAX_LENGHT * sizeof(char), sizeof(char));
     char *param_buffer_first = (char*)calloc(MAX_LENGHT * sizeof(char), sizeof(char));
@@ -50,7 +29,6 @@ int processCommand(char *input){
         return EXIT_SUCCESS;
     }
     bool args_ok = true;
-    //printf("command: %s\nfirst parameter: %s\nsecond parameter %s\n", cmd_buffer, param_buffer_first, param_buffer_second);
     if(strncmp(cmd_buffer, "mode", 5) == 0)
     {
         pthread_mutex_lock(&config_mutex);
@@ -90,29 +68,20 @@ int processCommand(char *input){
             fprintf(stderr, "Currently running in automatic mode, to use run command switch to manual mode.\n");
             args_ok = false;
         }
-        if(config.filtration_running){
-            fprintf(stderr, "Filtration is already running, wait for the cycle to finish or terminate it to run again.\n");
-            args_ok = false;
-        }
         pthread_mutex_unlock(&config_mutex);
- 
-        if((args_ok && !checkArgumentFloat(param_buffer_first)) || (atof(param_buffer_first) <= 0 && args_ok) || (atof(param_buffer_first) > MAX_DURATION && args_ok)){
-            args_ok = false;
-            fprintf(stderr, "Invalid argument, provide a decimal number as duration in hours. Between 0 and 18 hours.\n");
-        }
-        if(args_ok && strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
-            args_ok = false;
-            fprintf(stderr, "Invalid arguments, provide only one argument.\n");
-        }
+        verifyState(&args_ok, false);
+        verifyArguments(&args_ok, param_buffer_first, param_buffer_second, 1);
+
         if(args_ok){
             float duration = atof(param_buffer_first);
             printf("Filtration will run for %0.f minutes\nAre you sure you want proceed?\n[y/n]", duration*60);
-            int ret = recieveConfirmation(input);
+            int ret = recieveConfirmation();
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
                 printf("Proceeding...\nLaunching filtration for %0.f minutes.\n", duration*60);
-                ret = sendRunSignal(duration);
-                if(ret == TIME_ERR) return TIME_ERR;
+                pthread_mutex_lock(&config_mutex);
+                config.manual_duration = duration;
+                pthread_mutex_unlock(&config_mutex);
             }
             else{
                 printf("Aborted.\n");
@@ -123,40 +92,25 @@ int processCommand(char *input){
     {
         if(strncmp(param_buffer_first, "", MAX_LENGHT) == 0 && strncmp(param_buffer_second, "" , MAX_LENGHT) == 0){
             args_ok = false;
-            pthread_mutex_lock(&config_mutex);
-            char *mode = config.mode == AUTO? "automatic" : "manual";
-            printf("Current configuration:\nMode: %s\nDuration: %0.f minutes\nTime: %d:%d\n", mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
-            pthread_mutex_unlock(&config_mutex);
+            printConfig();
         }
-        pthread_mutex_lock(&config_mutex);
-        if(args_ok && config.filtration_running){
-            fprintf(stderr, "Filtration is currently running. Cannot change config now.\n");
-            args_ok = false;
-        }
-        pthread_mutex_unlock(&config_mutex);
-        if(!checkArgumentFloat(param_buffer_first) || !checkArgument(param_buffer_second)) args_ok = false;
-
-        if((args_ok && atof(param_buffer_first) <= 0) || (args_ok && atoi(param_buffer_second) < 0)
-        || (args_ok && atof(param_buffer_first) > MAX_DURATION) || (args_ok && atoi(param_buffer_second) > MAX_TIME)){
-            fprintf(stderr, "Provided parameters are invalid! USAGE: config [mode](-a/-m) [duration](float between 0 and 18) [time](int where 11:30 = 1130 for example)\n");
-            args_ok = false;
-        } 
-        if(args_ok && !isIntTime(atoi(param_buffer_second))){
-            fprintf(stderr, "Provided time is invalid. Provide a int corresponding to a time of day in format: 1135 (= 11:35)\n");
-            args_ok = false;
-        }
+        verifyState(&args_ok, false);
+        countArguments(2, &args_ok, param_buffer_first, param_buffer_second);
+        verifyArguments(&args_ok, param_buffer_first, param_buffer_second, 2);
+        
         if(args_ok){
             float new_duration = atof(param_buffer_first);
             uint16_t new_time = atoi(param_buffer_second);
-            printf("Set new configuration? Duration: %0.f minutes\nTime: %d:%d\nAre you sure you want proceed?\n[y/n]", new_duration*60, new_time/100, new_time-((new_time/100)*100));
-            int ret = recieveConfirmation(input);
+            char *conf_string = (new_time%100 < 10) ? "Set new configuration?\nDuration: %0.f minutes\nTime: %d:0%d\nAre you sure you want proceed?\n[y/n]" : "Set new configuration?\nDuration: %0.f minutes\nTime: %d:%d\nAre you sure you want proceed?\n[y/n]";
+            printf(conf_string, new_duration*60, new_time/100, new_time%100);
+            int ret = recieveConfirmation();
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
                 pthread_mutex_lock(&config_mutex);
                 config.duration = new_duration;
                 config.time = new_time;
-                printf("Configuration set to:\nDuration: %0.f minutes\nTime: %d:%d\n", config.duration*60, config.time/100, config.time-((config.time/100)*100));
                 pthread_mutex_unlock(&config_mutex);
+                printConfig();
             }
             else{
                 printf("Aborted.\n");
@@ -166,9 +120,7 @@ int processCommand(char *input){
     //TO DO implement the help command
     else if (strncmp(cmd_buffer, "kill", 5) == 0)
     {
-        if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
-            args_ok = false;
-        }
+        countArguments(0, &args_ok, param_buffer_first, param_buffer_second);
         if(args_ok){
             printf("WARNING! The filtration controler system will be terminated.\nAre you sure you want proceed?\n[y/n]");
             int ret = recieveConfirmation(input);
@@ -189,19 +141,11 @@ int processCommand(char *input){
     }
     else if (strncmp(cmd_buffer, "stop", 5) == 0)
     {
-        if(strncmp(param_buffer_first, "", MAX_LENGHT) != 0 || strncmp(param_buffer_second, "" , MAX_LENGHT) != 0){
-            fprintf(stderr, "This command does not take any parameters.\n");
-            args_ok = false;
-        }
-        pthread_mutex_lock(&config_mutex);
-        if(!config.filtration_running){
-            fprintf(stderr, "The filtration is currently not running.\n");
-            args_ok = false;
-        }
-        pthread_mutex_unlock(&config_mutex);
+        countArguments(0, &args_ok, param_buffer_first, param_buffer_second);
+        verifyState(&args_ok, true);
         if(args_ok){
             printf("The filtration currently running.\nAre you sure you want stop the current filtration cycle?\n[y/n]");
-            int ret = recieveConfirmation(input);
+            int ret = recieveConfirmation();
             if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
             if(ret == YES){
                 printf("Stopping filtration...\n");
@@ -216,11 +160,15 @@ int processCommand(char *input){
     }
     else if (strncmp(cmd_buffer, "help", 5) == 0)
     {
-        
+        printf("%s", HELP_MESSAGE);   
     }
     else if (strncmp(cmd_buffer, "state", 6) == 0)
     {
-        
+        countArguments(0, &args_ok, param_buffer_first, param_buffer_second);
+         if(args_ok){
+            char *state_string = checkDeviceState() ? "The filtration is currently running.\n" : "The filtration is not running.\n";
+            printf("%s", state_string);
+        }  
     }  
     else{
         fprintf(stderr, "Command not recognized.\n");
@@ -369,11 +317,19 @@ bool splitToBuffers(char *input, char *cmd_buffer, char *param_buffer_first, cha
     return true;
 }
 
-int recieveConfirmation(char *command){
-    int ret = readCmd(&command);
+int recieveConfirmation(){
+    char *buffer = (char*)malloc(STARTING_CAPACITY);
+    if(buffer == NULL) return ALLOCATION_ERR;
+    int ret = readCmd(&buffer);
     if(ret == ALLOCATION_ERR) return ALLOCATION_ERR;
-    if(ret != READING_SUCCESS || strncmp(command, "y", 2) != 0) return NO;
-    else return YES;
+    if(ret != READING_SUCCESS || strncmp(buffer, "y", 2) != 0) {
+        free(buffer);
+        return NO;
+    }
+    else {
+        free(buffer);
+        return YES;
+    }
 }
 
 int getCurrentTime(){
@@ -383,16 +339,6 @@ int getCurrentTime(){
     return (currentTime->tm_hour*100 + currentTime->tm_min);
 }
 
-int sendRunSignal(float duration){
-    int curtime = getCurrentTime();
-    if(curtime == TIME_ERR) return TIME_ERR;
-
-    pthread_mutex_lock(&config_mutex);
-    config.run_until = timeArithmeticAdd(curtime, duration);
-    pthread_mutex_unlock(&config_mutex);
-    return READING_SUCCESS;
-    
-}
 int timeArithmeticAdd(int time, float duration){
     int minutes = duration * 60;
     int hours = minutes/60;
@@ -405,4 +351,90 @@ bool isIntTime(int time_val){
     int minutes = time_val % 100;
     if(minutes > 59 || minutes < 0) return false;
     return true;
+}
+
+void printConfig(){
+    pthread_mutex_lock(&config_mutex);
+    const char *mode_string = (config.mode == AUTO) ? "CONFIGURATION:\nMode: AUTOMATIC\n" : "CONFIGURATION:\nMode: MANUAL\n";
+    const char *conf_string = (config.time % 100 < 10) ? "Time: %d:0%d\nDuration: %.0f minutes.\n": "Time: %d:%d\nDuration: %.0f minutes.\n";
+    printf("%s", mode_string);
+    printf(conf_string, config.time/100, config.time%100, config.duration*60);
+    pthread_mutex_unlock(&config_mutex);
+}
+
+void verifyState(bool *args_ok, bool desiredOn){
+    if((*args_ok) == false) return;
+    if(checkDeviceState()){
+        if(desiredOn) return;
+        *args_ok = false;
+        fprintf(stderr, SYSTEM_RUNNING_MSG);
+    }
+    else{
+        if(!desiredOn) return;
+        *args_ok = false;
+        fprintf(stderr, SYSTEM_NOT_RUNNING_MSG); 
+    } 
+}
+
+void countArguments(int desired_count, bool *args_ok, char *first_param, char *second_param){
+    if((*args_ok) == false) return;
+    switch (desired_count)
+    {
+    case 0:
+        if(strncmp(first_param, "", MAX_LENGHT) != 0 || strncmp(second_param, "" , MAX_LENGHT) != 0){
+            fprintf(stderr, "This command does not take any parameters.\n");
+            *args_ok = false;
+        }
+        break;
+    case 1:
+        if(strncmp(second_param, "" , MAX_LENGHT) != 0){
+            fprintf(stderr, "This command takes only one parameter\n");
+            *args_ok = false;
+        }
+        if(strncmp(first_param, "", MAX_LENGHT) == 0){
+            fprintf(stderr, "Too few parameters.\n");
+            *args_ok = false;
+        }
+        break;
+    case 2:
+        if(strncmp(first_param, "", MAX_LENGHT) == 0 || strncmp(second_param, "" , MAX_LENGHT) == 0){
+            fprintf(stderr, "Too few parameters.\n");
+            *args_ok = false;
+        }
+        break;
+    }
+}
+
+void verifyArguments(bool *args_ok, char *first_arg, char *second_arg, int desired_count){
+    if((*args_ok) == false) return;
+    switch (desired_count){
+    case 1:
+        if(!checkArgumentFloat(first_arg)){
+            *args_ok = false;
+            fprintf(stderr, NOT_FLOAT_MSG);
+            break;
+        }
+        if(atof(first_arg) > MAX_DURATION || atof(first_arg) <= 0){
+            *args_ok = false;
+            fprintf(stderr, INVALID_DURATION_MSG, MAX_DURATION);
+        }
+        break;
+    
+    case 2:
+        if(!checkArgumentFloat(first_arg) || !checkArgument(second_arg)){
+            *args_ok = false;
+            fprintf(stderr, INVALID_ARGS_MSG);
+            break;    
+        } 
+        if(atof(first_arg) > MAX_DURATION || atof(first_arg) <= 0){
+            *args_ok = false;
+            fprintf(stderr, INVALID_DURATION_MSG, MAX_DURATION);
+            break;
+        }
+        if(!isIntTime(atoi(second_arg))){
+            *args_ok = false;
+            fprintf(stderr, INVALID_TIME_INPUT);
+        }
+        break;
+    }
 }

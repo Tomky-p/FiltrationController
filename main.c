@@ -5,17 +5,17 @@
 #include <string.h>
 #include <time.h>
 
-//thread function manages the irrigation process in automatic mode
+//thread function manages the filtration process
 void* automaticController();
 
 //thread function reads and processes input from the user through the command line
 void* cmdManager();
 
-//USAGE: ./irrigationManager [Mode][Amount (l)][Interval (min)]
+//USAGE: ./FiltrationManager [Mode][Duration (hours)][Time of day]
 int main(int argc, char *argv[]){
     //argument check
     if(argc < 4){
-        fprintf(stderr, "Not enough arguments, USAGE: ./FiltrationController [Mode of(-a/-m)] [duration of filtration cycle in hours] [Time between cycles in minutes]\n");
+        fprintf(stderr, "Not enough arguments, USAGE: ./FiltrationController [Mode of(-a/-m)] [Duration of filtration cycle in hours] [Time of day]\n");
         return EXIT_FAILURE;
     }
     //argument parsing
@@ -23,39 +23,36 @@ int main(int argc, char *argv[]){
     if(strncmp(argv[1], "-m", 3) == 0) config.mode = MANUAL;
     else if (strncmp(argv[1], "-a", 3) == 0) config.mode = AUTO;
     else{
-        fprintf(stderr, "Invalid argument, USAGE: -a for Automatic irrigation, -m for manual irrigation.\n");
+        fprintf(stderr, "Invalid argument, USAGE: -a for Automatic filtration, -m for manual filtration.\n");
         return EXIT_FAILURE;
     }
 
     if(checkArgumentFloat(argv[2]) == false){
-        fprintf(stderr, "Invalid argument, provided duration is not a number or is too large.\n");
+        fprintf(stderr, NOT_FLOAT_MSG);
         return EXIT_FAILURE;
     }
     arg_value = atof(argv[2]);
     if(arg_value <= 0 || arg_value > MAX_DURATION){
-        fprintf(stderr, "Invalid argument, duration must be in between 1 minute and 18 hours.\n");
+        fprintf(stderr, INVALID_DURATION_MSG, MAX_DURATION);
         return EXIT_FAILURE;
     }
     config.duration = arg_value;
 
     if(checkArgument(argv[3]) == false){
-        fprintf(stderr, "Invalid argument, provided time is not an interger or is too large.\n");
+        fprintf(stderr, NOT_INT_MSG);
         return EXIT_FAILURE;
     }
     arg_value = (float)atoi(argv[3]);
     if(isIntTime(arg_value) == false){
-        fprintf(stderr, "Invalid argument, provided invalid time USAGE: provide int that = (desired hour) * 10 + desired minute i.e. 22:15 = 2215.\n");
+        fprintf(stderr, INVALID_TIME_INPUT);
         return EXIT_FAILURE;
     }
     config.time = (int)arg_value;
     config.running = true;
     config.filtration_running = false;
-    config.run_until = MAX_TIME + 1;
+    config.manual_duration = 0;
 
-    const char *start_string = (config.time % 100) < 10 ? "Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:0%d\n" : 
-                                                          "Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n";
-    printf(start_string, config.mode, (config.duration*60), (config.time/100), (config.time % 100));
-    //printf("Starting with following configuration:\nmode: %d\nduration: %.0f minutes\ntime: %d:%d\n", config.mode, config.duration*60, config.time/100, config.time-((config.time/100)*100));
+    printConfig();
 
     int *AF_thread_result;
     int *CMD_thread_result;
@@ -110,11 +107,11 @@ void* automaticController(){
     printf("Launching automatic filtration thread.\n");
     
     //initialize gpio pin interface
-    /*if(initGpioPinControl() == ALLOCATION_ERR){
+    if(initGpioPinControl() == ALLOCATION_ERR){
         config.running = false;
         *ret = GPIO_ERR;
         return (void*)ret;
-    }*/
+    }
     pthread_mutex_lock(&config_mutex);
     while (config.running)
     {    
@@ -124,26 +121,23 @@ void* automaticController(){
             config.running = false;
             return (void*)ret;
         }
-        //printf("Mode: %d\n", config.mode);
-        //printf("Running: %s\n", config.filtration_running ? "true" : "false");
-        //printf("curtime: %d\n", curtime);
+
         if(config.mode == AUTO && curtime == config.time && !config.filtration_running){        
             float duration = config.duration;
             pthread_mutex_unlock(&config_mutex);
             runFilration(duration);
         }
-        else if(config.mode == MANUAL && config.run_until < (MAX_TIME + 1)){
-            float duration = (float)(config.run_until - curtime)/(float)60;
-            //invalidate the run until time
-            config.run_until = MAX_TIME + 1; 
+        else if(config.mode == MANUAL && config.manual_duration > 0){
+            float duration = config.manual_duration;
+            //invalidate the manual duration
+            config.manual_duration = 0; 
             pthread_mutex_unlock(&config_mutex);
             runFilration(duration);
         }
         else{
             pthread_mutex_unlock(&config_mutex);
         }
-        //wait 100ms NOTE: cannot be over a minute
-        delay(100);
+        delay(100); //wait 100ms NOTE: cannot be over a minute
         pthread_mutex_lock(&config_mutex);
     }
     pthread_mutex_unlock(&config_mutex);
@@ -160,14 +154,12 @@ void* cmdManager(){
     } 
     printf("Launching command line listener thread.\n");
 
-    //command line control thread
     pthread_mutex_lock(&config_mutex);
     while (config.running)
     {
         pthread_mutex_unlock(&config_mutex);
         *ret = readCmd(&command);
         if(*ret == READING_SUCCESS){
-            //printf("Executing: %s\n", command);
             *ret = processCommand(command);
         }
         if(*ret == ALLOCATION_ERR){

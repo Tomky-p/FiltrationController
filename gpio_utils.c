@@ -5,25 +5,28 @@
 #include <stdio.h>
 
 int initGpioPinControl(){
-    int ret = wiringPiSetupGpio();
-    pinMode(DEVICE_PIN_NUMBER, OUTPUT);
-    return ret;
+    //int ret = wiringPiSetupGpio();
+    //pinMode(DEVICE_PIN_NUMBER, OUTPUT);
+    //return ret;
+    return EXIT_SUCCESS;
 }
 
 bool checkDeviceState(){
-    if(digitalRead(DEVICE_PIN_NUMBER) == HIGH) return true;
+    //if(digitalRead(DEVICE_PIN_NUMBER) == HIGH) return true;
+    //else return false;
+    if(config.filtration_running) return true;
     else return false;
 }
 
 void runFilration(float duration){
-    float in_miliseconds = ((duration*60)*60)*1000;
+    double in_seconds = ((duration*60)*60);
     launchFiltration();
     pthread_mutex_lock(&config_mutex);
-    while (config.filtration_running && in_miliseconds > 0)
+    while (config.filtration_running && in_seconds > 0)
     {
         pthread_mutex_unlock(&config_mutex);
         delay(1000);
-        in_miliseconds = in_miliseconds - 1000;
+        in_seconds = in_seconds - 1;
         pthread_mutex_lock(&config_mutex);
     }
     pthread_mutex_unlock(&config_mutex);
@@ -34,7 +37,7 @@ void runFilration(float duration){
 
 void shutdownFiltration(){
     pthread_mutex_lock(&config_mutex);
-    digitalWrite(DEVICE_PIN_NUMBER, LOW);
+    //digitalWrite(DEVICE_PIN_NUMBER, LOW);
     printf("Turned off.\n");
     config.filtration_running = false;
     pthread_mutex_unlock(&config_mutex);
@@ -42,7 +45,7 @@ void shutdownFiltration(){
 
 void launchFiltration(){
     pthread_mutex_lock(&config_mutex);
-    digitalWrite(DEVICE_PIN_NUMBER, HIGH);
+    //digitalWrite(DEVICE_PIN_NUMBER, HIGH);
     printf("Turned on.\n");
     config.filtration_running = true;
     pthread_mutex_unlock(&config_mutex);
